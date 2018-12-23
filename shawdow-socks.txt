@@ -1,0 +1,126 @@
+  因为写了一篇 Centos7 下安装配置shadowsocks客户端（手把手教学），由于处女座强迫症，硬是要再写一篇在centos下的配置shadowsocks服务端教程，也就是大家常说的翻墙，以求圆满。
+
+        我搭的第一把梯子是因为 从入门到入狱系列」 - AWS+SS 0成本徒手翻墙  这篇文章，看到就自己试了试，最后搭起来了当然也是很开心。这篇文章的教程使用了亚马逊免费使用一年的aws服务器作为VPN，零成本可以说是大家喜闻乐见的，所以有兴趣的同学可以参照这篇试着搭一下VPN。我接下来的教程，前提是你已经拥有一台自己在国外的VPS，固定IP的最好，拨号的也行，固定大概是拨号的3倍价格，我买了一个5兆带宽的美国VPS，每个月也就50块，好了，话不多说，开始吧。
+
+1.安装pip
+        Pip 是 Python 的包管理工具，下载ss十分方便，但是centos是没有pip的，我们需要安装一个。
+
+yum install python-setuptools & easy_install pip
+
+        看到有些文章命令是说yum install python-pip，我试了一下都是不行的，找了一下找到这个命令，装了python-setuptools 再去安装pip。
+
+2.安装Shadowsocks 客户端
+        shadowsocks安装时是不分客户端还是服务器端的，只不过安装后有两个脚本一个是sslocal代表以客户端模式工作，一个是ssserver代表以服务器端模式工作。上命令：
+
+pip install shadowsocks
+
+        遇上什么需要你确认的，敲y回车，下好之后，新建配置文件：
+
+vi   /etc/shadowsocks.json
+
+        按 i 进入编辑模式，复制粘贴填写以下内容，记得删掉#和后面的注释
+
+{
+
+    # 配置服务器 ip，这里填写 0.0.0.0
+
+    "server":"0.0.0.0",
+
+    "port_password":{
+
+        "18888" : "***********"                   # 端口和密码，shadowsocks不需要账号，真要说有，账号就是你的ip了
+
+     },
+
+    "timeout":300,                 #    超时时间 这个不用修改
+
+    "method":"aes-256-cfb",     #   加密方式，不用修改，想改的自行了解各种加密算法吧
+
+    "fast_open": false,             # true 或者 false 开启后能降低延迟
+
+     "workers": 1                  #  默认一个工作者
+
+}
+
+        改完之后，esc 退出编辑模式 ,   敲下：wq   保存退出。
+
+3.启动 shadowsocks
+# 启动
+
+ssserver -c /etc/shadowsocks.json -d start
+
+# 停止
+
+ssserver -c /etc/shadowsocks.json -d stop
+
+# 重新启动
+
+ssserver -c /etc/shadowsocks.json -d restart
+
+如果启动后不确定自己是否成功，可以使用
+
+ps -aux | grep ssserver
+
+ps是 linux 查看系统进程的工具，感兴趣可以看看这个命令：ps命令
+
+如果像下图一样能查到相关结果，证明这个进程已经启动成功了。
+
+
+我们接下来把 shadowsocks 服务端进程设置为开机启动：
+
+vim /etc/rc.local
+
+按i进入Insert模式，在exit 0上面的空白行加入：
+
+sudo ssserver -c /etc/shadowsocks/config.json -d start
+
+然后esc接着:接着wq。
+
+shadowsocks的部分就搞定啦
+
+4.开启防火墙端口
+        centos默认使用firewall防火墙，防火墙不开放我们设置的18888端口，我们shadowsocks是转发不出去的。所以，我们要开放firewall端口。
+
+firewalld的基本使用
+
+启动： systemctl start firewalld
+
+查看状态： systemctl status firewalld 
+
+停止： systemctl disable firewalld
+
+禁用： systemctl stop firewalld
+
+        先看看firewalld的状态。
+
+
+        可以看到firewalld正在活动，如果是dead，那么就输入上面的启动命令，启动firewalld。
+
+        那怎么开启一个端口呢？
+
+firewall-cmd --zone=public --add-port=18888/tcp --permanent    （--permanent永久生效，没有此参数重启后失效）
+
+        开启还不够，因为firewalld还没有载入这个设置。所以我们要重新载入规则。
+
+firewall-cmd --reload
+
+        到这里，我们就已经开放好18888端口了。
+
+5.windows端ss客户端
+        这样弄下来，我们ss服务端就搞定了，windows装ss客户端就比较方便了，百度上找找就有的下载。
+
+        安装好之后，打开ss，编辑服务器。
+
+        如果是固定ip的vps，那么你服务器ip就是你vps的ip，端口就是我们刚才设置的18888，加密方式也是aes-256-cfb，代理端口1080应该不用改。
+
+        如果你买的是拨号vps，那么你需要进入到你的拨号vps，敲下
+
+ifconfig
+
+        查看网络环境，找到ppp0
+
+
+
+
+        箭头所指的地方就是真正的IP，把这个填在ss的服务器IP上。但是拨号VPS我使用的时候貌似会用一段时间重新拨号，换了个IP，比较麻烦，建议还是固定IP的方便。
+
